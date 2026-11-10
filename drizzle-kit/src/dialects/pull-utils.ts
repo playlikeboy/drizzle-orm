@@ -211,7 +211,11 @@ export const withCasing = (value: string, casing?: Casing) => {
 		return escapeColumnKey(value);
 	}
 	if (casing === 'camel') {
-		return escapeColumnKey(toCamelCase(value));
+		// An all-uppercase name such as `FIRST_NAME` carries no camelCase word boundaries,
+		// so read it as snake_case words: `FIRST_NAME` -> `firstName`, not `firstNAME`.
+		// Mixed-case names keep their acronyms (`CallID` -> `callID`).
+		const words = value === value.toUpperCase() ? value.toLowerCase() : value;
+		return escapeColumnKey(toCamelCase(words));
 	}
 
 	return value;

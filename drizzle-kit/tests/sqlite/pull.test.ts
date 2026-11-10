@@ -18,6 +18,7 @@ import {
 } from 'drizzle-orm/sqlite-core';
 import { interimToDDL } from 'src/dialects/sqlite/ddl';
 import { fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
+import { ddlToTypeScript } from 'src/dialects/sqlite/typescript';
 import { expect, test } from 'vitest';
 import { dbFrom, diffAfterPull, push } from './mocks';
 
@@ -1248,6 +1249,36 @@ test('Issue No6074', async () => {
 	expect(generateSqlStatements).toStrictEqual([]);
 	expect(statements).toStrictEqual([]);
 	expect(generateStatements).toStrictEqual([]);
+});
+
+test('all-uppercase table and column names with camel casing', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`CREATE TABLE "CUSTOMERS" ("CUSTOMER_ID" INTEGER PRIMARY KEY, "FIRST_NAME" TEXT);`);
+	await db.run(`CREATE TABLE "ORDERS" (
+  "ORDER_ID" INTEGER PRIMARY KEY,
+  "CUSTOMER_ID" INTEGER REFERENCES "CUSTOMERS"("CUSTOMER_ID")
+);`);
+
+	const {
+		pushSqlStatements: sqlStatements,
+		pushStatements: statements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+	} = await diffAfterPull(sqlite, {}, 'all-uppercase-camel');
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+
+	const { file } = ddlToTypeScript(ddlAfterPull, 'camel', {}, 'sqlite');
+	expect(file).toContain('export const customers = sqliteTable("CUSTOMERS"');
+	expect(file).toContain('firstName: text("FIRST_NAME")');
+	expect(file).toContain('orderId: integer("ORDER_ID")');
+	expect(file).toContain('customerId: integer("CUSTOMER_ID").references(() => customers.customerId)');
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/6025
